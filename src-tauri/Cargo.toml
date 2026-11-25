@@ -3,6 +3,7 @@ name = "git-hunk"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
+license = "MIT"
 edition = "2024"
 # 显式指定主程序，避免存在多个可执行目标时 `tauri build` 无法定位
 default-run = "git-hunk"
