@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+@theme {
+  /* VS Code Dark Modern 100% 复刻色彩系统 */
+  --color-vsc-titlebar: #181818;
+  --color-vsc-activity: #181818;
+  --color-vsc-sidebar: #181818;
+  --color-vsc-statusbar: #181818;
+  --color-vsc-tabs: #181818;
+  --color-vsc-editor: #1f1f1f;
+  --color-vsc-panel: #202020;
+  --color-vsc-elevated: #252526;
+  --color-vsc-input: #313131;
+  --color-vsc-hover: #2a2d2e;
+  --color-vsc-active-inactive: #37373d;
+  --color-vsc-selection: #04395e;
+
+  --color-vsc-border: #2b2b2b;
+  --color-vsc-border-strong: #3c3c3c;
+  --color-vsc-border-menu: #454545;
+
+  --color-vsc-fg: #cccccc;
+  --color-vsc-fg-bright: #ffffff;
+  --color-vsc-fg-muted: #9d9d9d;
+  --color-vsc-fg-dim: #868686;
+  --color-vsc-gutter: #6e7681;
+
+  --color-vsc-accent: #0078d4;
+  --color-vsc-accent-hover: #026ec1;
+  --color-vsc-link: #3794ff;
+
+  --color-vsc-git-added: #73c991;
+  --color-vsc-git-modified: #e2c08d;
+  --color-vsc-git-deleted: #c74e39;
+  --color-vsc-git-conflict: #e46767;
+  --color-vsc-danger: #f14c4c;
+
+  --color-vsc-diff-add: rgba(155, 185, 85, 0.16);
+  --color-vsc-diff-add-word: rgba(155, 185, 85, 0.34);
+  --color-vsc-diff-add-gutter: rgba(155, 185, 85, 0.12);
+  --color-vsc-diff-del: rgba(255, 0, 0, 0.16);
+  --color-vsc-diff-del-word: rgba(255, 0, 0, 0.34);
+  --color-vsc-diff-del-gutter: rgba(255, 0, 0, 0.12);
+
+  --font-sans: "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+
+@utility bg-diff-hatch {
+  background-color: #1f1f1f;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(204, 204, 204, 0.11) 0,
+    rgba(204, 204, 204, 0.11) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+}
+
+@utility bg-checkerboard {
+  background-color: #1f1f1f;
+  background-image: repeating-conic-gradient(#181818 0% 25%, #252526 0% 50%);
+  background-size: 20px 20px;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    background-color: #1f1f1f;
+    color: #cccccc;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color-scheme: dark;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* VS Code Dark Modern 极细滚动条 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(121, 121, 121, 0.38);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 100, 100, 0.65);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* Markdown rendered HTML (via marked dangerouslySetInnerHTML) */
+@layer components {
+  .markdown-body {
+    max-width: 880px;
+    margin: 0 auto;
+    color: #cccccc;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.65;
+    word-wrap: break-word;
+  }
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4,
+  .markdown-body h5,
+  .markdown-body h6 {
+    color: #ffffff;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    line-height: 1.25;
+  }
+  .markdown-body h1 {
+    font-size: 1.85em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2b2b2b;
+  }
+  .markdown-body h2 {
+    font-size: 1.45em;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2b2b2b;
+  }
+  .markdown-body h3 {
+    font-size: 1.25em;
+  }
+  .markdown-body p {
+    margin-top: 0;
+    margin-bottom: 14px;
+  }
+  .markdown-body blockquote {
+    margin: 14px 0;
+    padding: 4px 16px;
+    color: #9d9d9d;
+    border-left: 4px solid #0078d4;
+    background: rgba(0, 120, 212, 0.08);
+    border-radius: 0 4px 4px 0;
+  }
+  .markdown-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  .markdown-body table th,
+  .markdown-body table td {
+    border: 1px solid #2b2b2b;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .markdown-body table th {
+    background: #252526;
+    font-weight: 600;
+    color: #ffffff;
+  }
+  .markdown-body table tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .markdown-body code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #ce9178;
+  }
+  .markdown-body pre {
+    background: #181818;
+    border: 1px solid #2b2b2b;
+    border-radius: 4px;
+    padding: 14px;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  .markdown-body pre code {
+    background: transparent;
+    padding: 0;
+    border: none;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #cccccc;
+  }
+  .markdown-body ul,
+  .markdown-body ol {
+    padding-left: 24px;
+    margin: 12px 0;
+  }
+  .markdown-body li {
+    margin: 4px 0;
+  }
+  .markdown-body a {
+    color: #3794ff;
+    text-decoration: none;
+  }
+  .markdown-body a:hover {
+    text-decoration: underline;
+  }
+  .markdown-body hr {
+    border: none;
+    border-top: 1px solid #2b2b2b;
+    margin: 24px 0;
+  }
+  .markdown-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+  }
+}
