@@ -35,7 +35,7 @@ jobs:
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+        run: echo "STORE_PATH=$(pnpm store path --silent | tr -d '\r')" >> "$GITHUB_ENV"
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -96,11 +96,6 @@ jobs:
             rust_target: aarch64-apple-darwin
             tauri_args: --target aarch64-apple-darwin
             artifact_name: git-hunk-macos-arm64
-          - label: macOS Intel
-            os: macos-15-intel
-            rust_target: x86_64-apple-darwin
-            tauri_args: --target x86_64-apple-darwin
-            artifact_name: git-hunk-macos-x64
           - label: Linux x64
             os: ubuntu-22.04
             rust_target: ""
@@ -124,7 +119,7 @@ jobs:
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+        run: echo "STORE_PATH=$(pnpm store path --silent | tr -d '\r')" >> "$GITHUB_ENV"
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -203,7 +198,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: package
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -214,9 +209,43 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Create GitHub Release
+      - name: Prepare rolling latest release
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes --cleanup-tag --repo "${{ github.repository }}" || true
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/latest" 2>/dev/null || true
+          sleep 2
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Publish rolling latest Release
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: latest
+          target_commitish: ${{ github.sha }}
+          name: "git-hunk latest (${{ env.SHORT_SHA }})"
+          body: |
+            Automated build from `main` (${{ github.sha }}).
+
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: release-artifacts/*
+          draft: false
+          prerelease: false
+          make_latest: "true"
+
+      - name: Publish tagged GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
           files: release-artifacts/*
           generate_release_notes: true
           draft: false
+          prerelease: false
+          make_latest: "true"
