@@ -61,6 +61,8 @@ import { EditorTabBar } from "./components/EditorTabBar";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useUpdater } from "./updater/useUpdater";
+import { useZoom } from "./zoom/useZoom";
+import { formatZoom, isDefaultZoom } from "./zoom/zoomUtils";
 import { CommitDetailSidebar } from "./components/CommitDetailSidebar";
 import type {
   BranchInfo,
@@ -216,6 +218,13 @@ export default function App() {
   // 自动更新：检查 / 下载 / 安装状态机 + 关于弹窗开关
   const updater = useUpdater();
   const [updaterOpen, setUpdaterOpen] = useState(false);
+  // 界面缩放（Ctrl+= / Ctrl+- / Ctrl+0）
+  const {
+    zoom: zoomLevel,
+    zoomIn,
+    zoomOut,
+    reset: resetZoom,
+  } = useZoom();
   const [explorerRefreshNonce, setExplorerRefreshNonce] = useState(0);
   const tabPairReqRef = useRef<Map<string, number>>(new Map());
 
@@ -2037,6 +2046,9 @@ export default function App() {
         if (status?.workdir) void closeOtherWorkspaces(status.workdir);
       },
       openUpdaterDialog: () => setUpdaterOpen(true),
+      zoomIn,
+      zoomOut,
+      resetZoom,
     }),
     [
       repoPath,
@@ -2191,6 +2203,22 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
+      // 界面缩放：与 VS Code 一致（Ctrl+= 放大 / Ctrl+- 缩小 / Ctrl+0 重置）
+      if (mod && !e.altKey && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+      if (mod && !e.altKey && (e.key === "-" || e.key === "_")) {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+      if (mod && !e.altKey && e.key === "0") {
+        e.preventDefault();
+        resetZoom();
+        return;
+      }
       if (mod && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setPaletteOpen(true);
@@ -2262,6 +2290,9 @@ export default function App() {
     closeTab,
     status,
     openGlobalSearch,
+    zoomIn,
+    zoomOut,
+    resetZoom,
   ]);
 
   // ---------------- 工作区写操作 ----------------
@@ -4171,6 +4202,16 @@ export default function App() {
             {commits.length} 个提交已加载
           </span>
         )}
+        <button
+          type="button"
+          className={`inline-flex h-full cursor-pointer items-center border-none bg-transparent px-1.5 text-[11px] transition-colors hover:bg-[#2a2d2e] hover:text-white ${
+            isDefaultZoom(zoomLevel) ? "text-[#9d9d9d]" : "text-[#4daafc]"
+          }`}
+          title="重置界面缩放 (Ctrl+0)"
+          onClick={resetZoom}
+        >
+          {formatZoom(zoomLevel)}
+        </button>
         <button
           type="button"
           className={`inline-flex h-full cursor-pointer items-center gap-1 border-none bg-transparent px-1.5 text-[11px] transition-colors hover:bg-[#2a2d2e] hover:text-white ${

@@ -797,5 +797,35 @@ export function buildCommands(): Command[] {
         ctx.openUpdaterDialog?.();
       },
     },
+    // -------------------------------------------------------------------------
+    // 视图缩放
+    // -------------------------------------------------------------------------
+    {
+      id: "view.zoomIn",
+      title: "View: Zoom In (放大界面)",
+      category: "View",
+      keywords: ["zoom in", "zoom", "放大", "缩放", "界面放大", "ctrl+="],
+      run: (ctx) => {
+        ctx.zoomIn?.();
+      },
+    },
+    {
+      id: "view.zoomOut",
+      title: "View: Zoom Out (缩小界面)",
+      category: "View",
+      keywords: ["zoom out", "zoom", "缩小", "缩放", "界面缩小", "ctrl+-"],
+      run: (ctx) => {
+        ctx.zoomOut?.();
+      },
+    },
+    {
+      id: "view.zoomReset",
+      title: "View: Reset Zoom (重置缩放)",
+      category: "View",
+      keywords: ["reset zoom", "zoom", "重置缩放", "默认缩放", "100%", "ctrl+0"],
+      run: (ctx) => {
+        ctx.resetZoom?.();
+      },
+    },
   ];
 }

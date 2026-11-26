@@ -50,6 +50,10 @@ export interface CommandContext {
   closeOtherWorkspaces?: () => void;
   /** 由 App 注入：打开「关于 / 检查更新」弹窗。 */
   openUpdaterDialog?: () => void;
+  /** 由 App 注入：界面缩放。 */
+  zoomIn?: () => void;
+  zoomOut?: () => void;
+  resetZoom?: () => void;
 }
 
 export interface Command {
