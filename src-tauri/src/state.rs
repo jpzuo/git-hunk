@@ -96,6 +96,9 @@ pub struct AppState {
     pub file_search_gen: Arc<AtomicU64>,
     pub history_search_gen: Arc<AtomicU64>,
     pub visibility: Arc<WindowVisibilitySignal>,
+    /// 更新安装期间置位，放行 `RunEvent::ExitRequested` 的退出拦截
+    /// （默认关闭主窗口只是隐藏到托盘，需显式允许才真正退出）。
+    pub allow_exit: Arc<AtomicBool>,
 }
 
 impl Default for AppState {
@@ -111,6 +114,7 @@ impl Default for AppState {
             file_search_gen: Arc::new(AtomicU64::new(0)),
             history_search_gen: Arc::new(AtomicU64::new(0)),
             visibility: Arc::new(WindowVisibilitySignal::default()),
+            allow_exit: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -135,7 +139,17 @@ impl AppState {
             file_search_gen: Arc::new(AtomicU64::new(0)),
             history_search_gen: Arc::new(AtomicU64::new(0)),
             visibility: Arc::new(WindowVisibilitySignal::default()),
+            allow_exit: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// 允许应用真正退出（更新安装前置条件；Windows 安装器会强制结束进程）。
+    pub fn allow_exit(&self) {
+        self.allow_exit.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_exit_allowed(&self) -> bool {
+        self.allow_exit.load(Ordering::SeqCst)
     }
 
     pub fn next_content_search_token(&self) -> u64 {

@@ -58,6 +58,9 @@ import {
 } from "./components/GlobalSearchPanel";
 import { FilePreviewPage } from "./components/FilePreviewPage";
 import { EditorTabBar } from "./components/EditorTabBar";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { useUpdater } from "./updater/useUpdater";
 import { CommitDetailSidebar } from "./components/CommitDetailSidebar";
 import type {
   BranchInfo,
@@ -210,6 +213,9 @@ export default function App() {
   const [toast, setToast] = useState<{ kind: "info" | "error"; text: string } | null>(
     null,
   );
+  // 自动更新：检查 / 下载 / 安装状态机 + 关于弹窗开关
+  const updater = useUpdater();
+  const [updaterOpen, setUpdaterOpen] = useState(false);
   const [explorerRefreshNonce, setExplorerRefreshNonce] = useState(0);
   const tabPairReqRef = useRef<Map<string, number>>(new Map());
 
@@ -2030,6 +2036,7 @@ export default function App() {
       closeOtherWorkspaces: () => {
         if (status?.workdir) void closeOtherWorkspaces(status.workdir);
       },
+      openUpdaterDialog: () => setUpdaterOpen(true),
     }),
     [
       repoPath,
@@ -2726,6 +2733,17 @@ export default function App() {
 
         <WindowControls />
       </header>
+
+      {updater.bannerVisible && updater.info && (
+        <UpdateBanner
+          info={updater.info}
+          status={updater.status}
+          progress={updater.progress}
+          onInstall={() => void updater.install()}
+          onSkip={updater.skip}
+          onDismiss={updater.dismiss}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 左栏：图标功能导航（悬浮展示文字提示） */}
@@ -4069,6 +4087,20 @@ export default function App() {
         </div>
       )}
 
+      {updaterOpen && (
+        <UpdateDialog
+          currentVersion={updater.currentVersion}
+          status={updater.status}
+          info={updater.info}
+          progress={updater.progress}
+          error={updater.error}
+          onClose={() => setUpdaterOpen(false)}
+          onCheck={() => updater.check(true)}
+          onInstall={updater.install}
+          onSkip={updater.skip}
+        />
+      )}
+
       {toast && (
         <div
           className={`fixed bottom-8 right-4 z-[60] max-w-[420px] rounded-[4px] border px-3.5 py-2 text-[12px] shadow-[0_6px_20px_rgba(0,0,0,0.55)] ${
@@ -4139,6 +4171,19 @@ export default function App() {
             {commits.length} 个提交已加载
           </span>
         )}
+        <button
+          type="button"
+          className={`inline-flex h-full cursor-pointer items-center gap-1 border-none bg-transparent px-1.5 text-[11px] transition-colors hover:bg-[#2a2d2e] hover:text-white ${
+            updater.status === "available" ? "text-[#4daafc]" : "text-[#9d9d9d]"
+          }`}
+          title="关于 / 检查更新"
+          onClick={() => setUpdaterOpen(true)}
+        >
+          {updater.status === "available" && (
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#4daafc]" />
+          )}
+          v{updater.currentVersion ?? "—"}
+        </button>
       </footer>
     </div>
   );

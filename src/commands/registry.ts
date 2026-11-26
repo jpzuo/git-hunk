@@ -48,6 +48,8 @@ export interface CommandContext {
   openCatalogPanel?: () => void;
   /** 由 App 注入：关闭其他工作区。 */
   closeOtherWorkspaces?: () => void;
+  /** 由 App 注入：打开「关于 / 检查更新」弹窗。 */
+  openUpdaterDialog?: () => void;
 }
 
 export interface Command {

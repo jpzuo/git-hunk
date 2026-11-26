@@ -359,5 +359,21 @@ export interface ScriptRunRecord {
   partial_line: string;
 }
 
+/** ================= 自动更新（tauri-plugin-updater） ================= */
+
+/** 检查到的更新元数据（对应后端 `update::UpdateInfo`）。 */
+export interface UpdateInfo {
+  current_version: string;
+  version: string;
+  date: string | null;
+  body: string | null;
+}
+
+/** 下载进度事件（对应后端 `update::UpdateProgress`，判别式联合）。 */
+export type UpdateProgress =
+  | { event: "Started"; data: { contentLength: number | null } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
 
 

@@ -776,5 +776,26 @@ export function buildCommands(): Command[] {
         ctx.closeOtherWorkspaces?.();
       },
     },
+    // -------------------------------------------------------------------------
+    // 应用与更新
+    // -------------------------------------------------------------------------
+    {
+      id: "app.checkUpdates",
+      title: "App: Check for Updates (检查更新)",
+      category: "App",
+      keywords: ["update", "upgrade", "version", "检查更新", "更新", "升级", "版本"],
+      run: (ctx) => {
+        ctx.openUpdaterDialog?.();
+      },
+    },
+    {
+      id: "app.showAbout",
+      title: "App: About git-hunk (关于 git-hunk)",
+      category: "App",
+      keywords: ["about", "version", "关于", "版本", "信息"],
+      run: (ctx) => {
+        ctx.openUpdaterDialog?.();
+      },
+    },
   ];
 }

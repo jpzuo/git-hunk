@@ -1,7 +1,7 @@
 {
   "name": "git-hunk",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "verify:updater": "node scripts/verify-updater-config.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

@@ -18,6 +18,7 @@ mod operations;
 mod project_scripts;
 mod script_runner;
 mod state;
+mod update;
 mod watcher;
 
 /// 冒烟验证入口，供 `bin/smoke.rs` 在真实仓库上驱动业务函数。
@@ -78,7 +79,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .manage(update::PendingUpdate::default())
         .setup(move |app| {
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+
             // 初始化仓库管理中心存储路径
             if let Some(state) = app.try_state::<AppState>() {
                 state.init_catalog_path(&app.handle().clone());
@@ -243,12 +251,19 @@ pub fn run() {
             commands::repo_run_script,
             commands::repo_stop_script,
             commands::repo_list_running_scripts,
+            // 自动更新
+            update::update_check,
+            update::update_install,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| match event {
             tauri::RunEvent::ExitRequested { api, code, .. } => {
-                if code.is_none() && !quitting_for_run.load(Ordering::SeqCst) {
+                let exit_allowed = app_handle
+                    .try_state::<AppState>()
+                    .map(|s| s.is_exit_allowed())
+                    .unwrap_or(false);
+                if code.is_none() && !quitting_for_run.load(Ordering::SeqCst) && !exit_allowed {
                     api.prevent_exit();
                 } else if let Some(state) = app_handle.try_state::<AppState>() {
                     state.stop_all_scripts();

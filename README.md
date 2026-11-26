@@ -120,6 +120,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 启动后点击左上角 **📂**，或 `Ctrl+O` 选择目录。所选目录**本身必须是 Git 仓库**（含 `.git`），否则会提示 `could not find repository`。
 
+### 发版与自动更新
+
+git-hunk 内置自动更新：启动后静默检查新版本，发现后可在标题栏提示条或状态栏版本号处下载安装；命令面板亦可手动触发「检查更新」。
+
+- **仅以 `vX.Y.Z` 标签发布正式版**（`push main` 只跑测试构建，不发版），更新源为 GitHub `releases/latest/download/latest.json`。
+- 首次发版前需生成签名密钥并配置 `TAURI_SIGNING_PRIVATE_KEY` 等 Secrets，详见 **[docs/UPDATER.md](./docs/UPDATER.md)**。
+- 本地校验版本与更新器配置：`node scripts/verify-updater-config.mjs vX.Y.Z`。
+
 ---
 
 ## ⌨️ 常用快捷键

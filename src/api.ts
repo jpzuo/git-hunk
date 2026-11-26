@@ -1,6 +1,6 @@
 /** Tauri invoke 的类型化封装。所有后端调用都从这里走，便于集中处理错误。 */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
   BranchInfo,
   CatalogItemSummary,
@@ -22,6 +22,8 @@ import type {
   ScriptGroup,
   ScriptItem,
   ScriptRunSession,
+  UpdateInfo,
+  UpdateProgress,
 } from "./types";
 import type { CommitDetail, CommitPage, FilePair } from "./historyTypes";
 
@@ -240,4 +242,12 @@ export const api = {
     call<void>("repo_stop_script", { runId }),
   listRunningScripts: () =>
     call<ScriptRunSession[]>("repo_list_running_scripts"),
+
+  // ---------------- 自动更新 ----------------
+  checkUpdate: () => call<UpdateInfo | null>("update_check"),
+  installUpdate: (onProgress: (p: UpdateProgress) => void) => {
+    const channel = new Channel<UpdateProgress>();
+    channel.onmessage = onProgress;
+    return call<void>("update_install", { onEvent: channel });
+  },
 };

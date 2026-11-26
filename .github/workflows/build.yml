@@ -35,7 +35,7 @@ jobs:
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent | tr -d '\r')" >> "$GITHUB_ENV"
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -79,9 +79,29 @@ jobs:
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
+  guard:
+    name: Guard release version & updater config
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Validate version consistency and updater configuration
+        run: node scripts/verify-updater-config.mjs "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}"
+
   package:
     name: Package (${{ matrix.label }})
-    needs: test
+    needs: [test, guard]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -160,92 +180,25 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri bundles
+      # 仅 v* 标签发版；workflow_dispatch 只构建并以工作流产物提供下载。
+      # 打标签时由 tauri-action 创建/更新 Release，自动合并 latest.json 并上传 .sig。
+      - name: Build & publish (tauri-action)
         id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_STRIP: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.tauri_args }}
-
-      - name: Collect built installers
-        shell: bash
-        env:
-          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
-        run: |
-          node -e '
-            const fs = require("node:fs");
-            const path = require("node:path");
-            const files = JSON.parse(process.env.ARTIFACT_PATHS || "[]");
-            fs.mkdirSync("release-artifacts", { recursive: true });
-            for (const file of files) {
-              if (fs.existsSync(file) && fs.statSync(file).isFile()) {
-                fs.copyFileSync(file, path.join("release-artifacts", path.basename(file)));
-              }
-            }
-            console.log("Collected:", fs.readdirSync("release-artifacts"));
-          '
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: release-artifacts/*
-          if-no-files-found: error
-          retention-days: 30
-
-  release:
-    name: Publish GitHub Release
-    needs: package
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download all packaged installers
-        uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-          merge-multiple: true
-
-      - name: Prepare rolling latest release
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete latest --yes --cleanup-tag --repo "${{ github.repository }}" || true
-          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/latest" 2>/dev/null || true
-          sleep 2
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
-
-      - name: Publish rolling latest Release
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: latest
-          target_commitish: ${{ github.sha }}
-          name: "git-hunk latest (${{ env.SHORT_SHA }})"
-          body: |
-            Automated build from `main` (${{ github.sha }}).
-
-            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          files: release-artifacts/*
-          draft: false
+          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('git-hunk {0}', github.ref_name) || '' }}
+          generateReleaseNotes: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          releaseDraft: false
           prerelease: false
-          make_latest: "true"
-
-      - name: Publish tagged GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: release-artifacts/*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          make_latest: "true"
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          updaterJsonPreferNsis: true
+          uploadWorkflowArtifacts: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          workflowArtifactNamePattern: ${{ matrix.artifact_name }}

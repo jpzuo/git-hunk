@@ -22,6 +22,9 @@ pub enum AppError {
     #[error("state error: {0}")]
     State(String),
 
+    #[error("update error: {0}")]
+    Updater(String),
+
     #[error("tauri error: {0}")]
     Tauri(#[from] tauri::Error),
 }
