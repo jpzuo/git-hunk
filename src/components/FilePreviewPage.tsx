@@ -108,7 +108,7 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
       const res = await api.readFile(path);
       if (reqSeq !== loadSeqRef.current) return;
       setData(res);
-      setViewMode(res.is_markdown && !targetLineRef.current ? "preview" : "source");
+      setViewMode(res.is_markdown ? "preview" : "source");
       if (codeContainerRef.current) {
         codeContainerRef.current.scrollTop = 0;
         codeContainerRef.current.scrollLeft = 0;
@@ -129,13 +129,6 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
   useEffect(() => {
     void loadFile();
   }, [loadFile]);
-
-  // 已打开 Markdown 富文本预览时点击搜索命中行，自动切至源码视图以定位行号
-  useEffect(() => {
-    if (targetLine && data?.is_markdown && viewMode === "preview") {
-      setViewMode("source");
-    }
-  }, [targetLine, jumpNonce, data?.is_markdown, viewMode]);
 
   const markdownHtml = useMemo(() => {
     if (!data?.is_markdown || !data.text_content) return "";
@@ -181,7 +174,6 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
   useEffect(() => {
     if (findOpen) return;
     if (!targetLine || !data || data.is_binary || data.is_image) return;
-    if (data.is_markdown && viewMode === "preview") return;
     let innerRaf: number | undefined;
     const outerRaf = requestAnimationFrame(() => {
       innerRaf = scrollToLineNumber(targetLine);
@@ -197,18 +189,21 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
     data?.path,
     data?.is_binary,
     data?.is_image,
-    data?.is_markdown,
-    viewMode,
     scrollToLineNumber,
   ]);
 
-  const canSearchText = Boolean(path && data && !data.is_binary && !data.is_image && data.text_content !== undefined);
+  // Markdown 仅提供富文本预览，无源码视图，因此文件内查找（依赖源码行高亮定位）暂不提供
+  const canSearchText = Boolean(
+    path &&
+      data &&
+      !data.is_binary &&
+      !data.is_image &&
+      !data.is_markdown &&
+      data.text_content !== undefined,
+  );
 
   const openFind = useCallback(() => {
     if (!canSearchText) return;
-    if (data?.is_markdown && viewMode === "preview") {
-      setViewMode("source");
-    }
     const sel = extractSingleLineSelection();
     if (sel) {
       setFindOptions((prev) => ({ ...prev, query: sel }));
@@ -225,8 +220,6 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
     setFindFocusNonce((n) => n + 1);
   }, [
     canSearchText,
-    data?.is_markdown,
-    viewMode,
     findOptions.query,
     activeTab?.searchHighlight,
     dismissedTabHighlight,
@@ -495,24 +488,7 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
 
   const actionsBar = (
     <>
-      {data?.is_markdown && (
-        <div className="flex items-center gap-0.5 mr-1">
-          <IconButton
-            tooltip="富文本预览"
-            variant={viewMode === "preview" ? "active" : "ghost"}
-            icon={<Eye size={13} />}
-            onClick={() => setViewMode("preview")}
-          />
-          <IconButton
-            tooltip="源码视图"
-            variant={viewMode === "source" ? "active" : "ghost"}
-            icon={<Code size={13} />}
-            onClick={() => setViewMode("source")}
-          />
-        </div>
-      )}
-
-      {data?.text_content && (
+      {canSearchText && (
         <IconButton
           tooltip="在当前文件中查找 (Ctrl+F)"
           variant={findOpen ? "active" : "ghost"}
@@ -650,7 +626,7 @@ export const FilePreviewPage = React.memo(function FilePreviewPage({
               </button>
             </div>
           </div>
-        ) : data.is_markdown && viewMode === "preview" ? (
+        ) : data.is_markdown ? (
           <div className="h-full overflow-y-auto px-10 py-7 box-border bg-[#1f1f1f]">
             <div
               className="markdown-body"

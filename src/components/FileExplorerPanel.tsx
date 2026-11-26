@@ -537,19 +537,6 @@ export const FileExplorerPanel = React.memo(function FileExplorerPanel({
             : item.name}
         </span>
 
-        {item.is_markdown && (
-          <span
-            className={`text-[9px] leading-[12px] px-1 rounded-[2px] ml-1.5 font-semibold uppercase shrink-0 border ${
-              isSelected
-                ? "bg-white/15 text-white border-transparent"
-                : "bg-[#252526] text-[#9d9d9d] border-[#3c3c3c]"
-            }`}
-            title="Markdown 专属富文本支持"
-          >
-            md
-          </span>
-        )}
-
         {!item.is_dir && statusMap.has(item.path) && (
           <span
             className={`text-[11px] font-semibold ml-1.5 shrink-0 ${

@@ -107,8 +107,8 @@
 /* Markdown rendered HTML (via marked dangerouslySetInnerHTML) */
 @layer components {
   .markdown-body {
-    max-width: 880px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     color: #cccccc;
     font-family: var(--font-sans);
     font-size: 14px;
