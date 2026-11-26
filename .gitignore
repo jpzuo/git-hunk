@@ -31,6 +31,7 @@ dist-ssr
 *.key
 *.pfx
 *.p12
+.tauri/
 
 # Windows / build binaries
 *.exe

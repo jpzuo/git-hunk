@@ -108,12 +108,66 @@ function checkMacOverride() {
 function checkWorkflow() {
   console.log("== CI 工作流 ==");
   const yml = read(".github/workflows/build.yml");
+
   if (yml.includes("TAURI_SIGNING_PRIVATE_KEY")) ok("已注入签名密钥环境变量");
   else bad("工作流缺少 TAURI_SIGNING_PRIVATE_KEY");
+
   if (/tags:\s*\n\s*-\s*["']?v\*/.test(yml) || yml.includes('"v*"')) ok("配置了 v* 标签触发");
   else bad("工作流缺少 v* 标签触发");
+
+  // 自动发版：需要 prepare 作业产出 should_publish，并有 contents: write
+  if (yml.includes("should_publish")) ok("包含自动打标/发版判定（should_publish）");
+  else bad("工作流缺少自动打标/发版判定（prepare → should_publish）");
+  if (/contents:\s*write/.test(yml)) ok("具备 contents: write 权限");
+  else bad("工作流缺少 contents: write 权限（无法创建标签/Release）");
+
+  // tauri-action 版本与其输入名必须匹配（本项目曾因 v0 用了 v1 输入名而静默失效）
+  const m = yml.match(/tauri-apps\/tauri-action@(v[0-9][^\s]*)/);
+  if (!m) {
+    bad("未找到 tauri-apps/tauri-action 引用");
+  } else {
+    const ref = m[1];
+    const majorVersion = /^v0\b/.test(ref) ? 0 : /^v1\b/.test(ref) ? 1 : null;
+    ok(`tauri-action 版本：${ref}`);
+    if (majorVersion === 0) {
+      const v1Only = ["uploadUpdaterSignatures", "workflowArtifactNamePattern", "uploadUpdaterJson", "releaseAssetNamePattern"];
+      const used = v1Only.filter((k) => yml.includes(k));
+      if (used.length) bad(`tauri-action@${ref} 不支持 v1 输入：${used.join(", ")}（v0 请用 includeUpdaterJson / assetNamePattern）`);
+      else ok("v0 输入名匹配");
+    } else if (majorVersion === 1) {
+      const v0Only = ["includeUpdaterJson", "assetNamePattern", "updaterJsonKeepUniversal", "includeDebug", "includeRelease"];
+      const used = v0Only.filter((k) => yml.includes(k));
+      if (used.length) bad(`tauri-action@${ref} 不支持 v0 输入：${used.join(", ")}（v1 请用 uploadUpdaterJson / releaseAssetNamePattern）`);
+      else ok("v1 输入名匹配");
+    }
+  }
+
   if (yml.includes("uploadUpdaterJson")) ok("启用了 latest.json 生成");
   else bad("工作流未启用 uploadUpdaterJson");
+}
+
+function checkSigningSecret() {
+  console.log("== 签名密钥配置（CI 环境） ==");
+  const hasKey = process.env.HAS_SIGNING_KEY;
+  if (hasKey === undefined) {
+    console.log("  SKIP 未在 CI 环境中运行，跳过密钥存在性检查");
+    return;
+  }
+  if (hasKey === "true") ok("已配置 TAURI_SIGNING_PRIVATE_KEY Secret");
+  else bad("未配置 TAURI_SIGNING_PRIVATE_KEY Secret：有公钥而无私钥时 tauri build 会直接失败");
+}
+
+function checkEndpointSlug() {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo) {
+    console.log("== 更新源仓库校验 == 未提供 GITHUB_REPOSITORY，跳过");
+    return;
+  }
+  console.log("== 更新源仓库校验 ==");
+  const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
+  const endpoints = ((tauri.plugins || {}).updater || {}).endpoints || [];
+  if (endpoints.some((e) => e.includes(repo))) ok(`endpoints 指向当前仓库 ${repo}`);
+  else bad(`endpoints 未指向当前仓库 ${repo}（${endpoints.join(", ")}）`);
 }
 
 const tag = process.argv[2] || "";
@@ -122,6 +176,8 @@ checkTag(tag, appVersion);
 checkUpdaterConfig();
 checkMacOverride();
 checkWorkflow();
+checkSigningSecret();
+checkEndpointSlug();
 
 console.log("");
 if (failures === 0) {

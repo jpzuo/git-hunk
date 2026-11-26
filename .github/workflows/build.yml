@@ -1,5 +1,9 @@
 name: Build & Package
 
+# 发布策略：推 main 时若 tauri.conf.json 的版本尚无对应 vX.Y.Z 标签，
+# 自动创建标签并发布正式 Release；版本未变时重推 main 不重复发版（幂等）。
+# 也可直接推送 v* 标签，或用 workflow_dispatch 手动触发。
+
 on:
   push:
     branches:
@@ -80,9 +84,8 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
   guard:
-    name: Guard release version & updater config
+    name: Guard version & updater config
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -93,13 +96,75 @@ jobs:
         with:
           node-version: "24"
 
+      # 校验版本一致、标签匹配（标签触发时）、公钥非空、endpoints、action 输入名匹配，
+      # 以及签名密钥是否已注入（缺密钥将明确失败，而不是静默跳过）。
       - name: Validate version consistency and updater configuration
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: node scripts/verify-updater-config.mjs "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}"
+
+  prepare:
+    name: Prepare release tag
+    needs: [test, guard]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      should_publish: ${{ steps.decide.outputs.should_publish }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to publish and create tag if needed
+        id: decide
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 直接推送 v* 标签：按该标签发版
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Tag push detected: ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG="v${VERSION}"
+          echo "App version: ${VERSION}; target tag: ${TAG}"
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            echo "Tag ${TAG} already exists."
+            # 标签存在但 Release 可能缺失：以 latest.json 是否可取判断是否已发布
+            if curl -fsSL -o /dev/null "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/latest.json"; then
+              echo "Release for ${TAG} already published; nothing to do."
+              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+              echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Tag exists but no published release found; will (re)publish."
+              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+              echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "refs/tags/${TAG}"
+          echo "Created and pushed tag ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
 
   package:
     name: Package (${{ matrix.label }})
-    needs: [test, guard]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: [test, guard, prepare]
+    if: needs.prepare.outputs.should_publish == 'true'
     permissions:
       contents: write
     strategy:
@@ -126,6 +191,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -180,11 +247,11 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # 仅 v* 标签发版；workflow_dispatch 只构建并以工作流产物提供下载。
-      # 打标签时由 tauri-action 创建/更新 Release，自动合并 latest.json 并上传 .sig。
+      # tauri-action v1：创建/更新 Release，自动合并 latest.json 并上传 .sig。
+      # 注意：v1 输入名为 uploadUpdaterJson / uploadUpdaterSignatures 等（与 v0 不兼容）。
       - name: Build & publish (tauri-action)
         id: tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_STRIP: "true"
@@ -192,13 +259,46 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.tauri_args }}
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('git-hunk {0}', github.ref_name) || '' }}
-          generateReleaseNotes: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: git-hunk ${{ needs.prepare.outputs.tag }}
+          generateReleaseNotes: true
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
           updaterJsonPreferNsis: true
-          uploadWorkflowArtifacts: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          workflowArtifactNamePattern: ${{ matrix.artifact_name }}
+
+  verify:
+    name: Verify published update feed
+    needs: [prepare, package]
+    if: needs.prepare.outputs.should_publish == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Assert latest.json contains Windows & Linux entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/${{ github.repository }}/releases/latest/download/latest.json"
+          ok=""
+          for i in $(seq 1 10); do
+            echo "Attempt ${i}: fetching ${URL}"
+            if curl -fsSL "$URL" -o latest.json; then ok="1"; break; fi
+            sleep 10
+          done
+          if [ -z "$ok" ]; then echo "latest.json not reachable"; exit 1; fi
+          echo "=== latest.json ==="
+          cat latest.json
+          node -e '
+            const fs = require("node:fs");
+            const j = JSON.parse(fs.readFileSync("latest.json", "utf8"));
+            const keys = Object.keys(j.platforms || {});
+            console.log("version:", j.version, "platforms:", keys.join(", "));
+            if (!j.version) { console.error("latest.json missing version"); process.exit(1); }
+            for (const k of ["windows-x86_64", "linux-x86_64"]) {
+              if (!j.platforms || !j.platforms[k] || !j.platforms[k].url || !j.platforms[k].signature) {
+                console.error("latest.json missing valid entry for " + k);
+                process.exit(1);
+              }
+            }
+            console.log("latest.json OK");
+          '

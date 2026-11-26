@@ -4,7 +4,9 @@ git-hunk 使用 [Tauri v2 Updater](https://v2.tauri.app/plugin/updater/) 实现�
 
 ## 发布策略
 
-- **只有 `vX.Y.Z` 标签才会发布正式版**：`push main` 仅执行测试与构建检查，不产生 Release。
+- **推 `main` 自动发版**：CI 读取 `src-tauri/tauri.conf.json` 的 `version`，若远端尚无对应的 `vX.Y.Z` 标签，则**自动创建标签并发布正式 Release**；若标签已存在且 Release 已发布，则**跳过（幂等）**，重推 main 不会重复发版。
+- **改版本号即发版**：要让新版本发布，只需把三处版本号一起改大再推 main。
+- 也可直接推送 `v*` 标签（`git tag v0.3.0 && git push origin v0.3.0`），或以 `workflow_dispatch` 手动触发。
 - 更新源为 GitHub 的「latest」Release：
   `https://github.com/jpzuo/git-hunk/releases/latest/download/latest.json`
 - 应用内部版本号必须是**纯 SemVer**（如 `0.2.0`，不能带 `v`）；`v` 只出现在标签与 Release 名上。
@@ -56,18 +58,27 @@ gh release delete latest --cleanup-tag
 
 ## 发版流程
 
+**推荐（自动打标）**：只改版本号，推 main 即可。
+
 ```bash
 # 1. 同步版本号（三处必须一致）：package.json / src-tauri/Cargo.toml / src-tauri/tauri.conf.json
 #    例如都改为 0.3.0
-# 2. 本地校验（可选，但建议）
+# 2. 本地校验（建议）
 node scripts/verify-updater-config.mjs v0.3.0
-# 3. 提交并打标签
+# 3. 提交并推送 main
 git add -A && git commit -m "chore: release v0.3.0"
-git tag v0.3.0
-git push origin main --tags
+git push origin main
 ```
 
-标签推送后 CI 自动：校验版本 → 三平台构建 → `tauri-action` 创建 Release、上传安装包与 `.sig`、合并生成 `latest.json`。
+CI 会自动：`guard` 校验 → `prepare` 发现 `v0.3.0` 不存在则创建并推送该标签 → 三平台构建 → `tauri-action` 创建 Release、上传安装包与 `.sig`、合并生成 `latest.json` → `verify` 断言 `latest.json` 含 Windows/Linux 条目。若版本未变重推 main，`prepare` 判定已发布而跳过，不重复发版。
+
+**备选（手动打标签）**：
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+> 注意：`GITHUB_TOKEN` 推送的标签不会再次触发工作流（GitHub 防递归），所以发版必须在**同一次运行**内完成——工作流已用 `prepare` 产出标签、`package` 直接用该标签构建发布来满足这一点。
 
 ## 平台支持现状
 
